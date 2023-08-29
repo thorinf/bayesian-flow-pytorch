@@ -61,7 +61,7 @@ class BayesianFlow:
         condition = t < t_min
         return torch.where(append_dims(condition, x_hat.ndim), torch.zeros_like(x_hat), x_hat)
 
-    def continuous_data_continuous_loss(self, x: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
+    def continuous_data_continuous_loss(self, target: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
         bsz = x.shape[0]
@@ -117,7 +117,7 @@ class BayesianFlow:
 
     def discrete_output_distribution(self, theta: torch.Tensor, t: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
         if self.num_classes == 2 and self.reduced_features_binary:
-            theta = theta[..., 1:]
+            theta = theta[..., :1]
 
         output = self.model(theta, t, **model_kwargs)
 
@@ -130,18 +130,36 @@ class BayesianFlow:
             p_sub_o = torch.nn.functional.softmax(output, dim=-1)
         return p_sub_o
 
-    def discrete_data_continuous_loss(self, ids: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
+    def target_to_distribution(self, target: torch.Tensor) -> torch.Tensor:
+        if target.dtype == torch.int64:
+            target_dist = F.one_hot(target, num_classes=self.num_classes).float()
+        elif target.dtype in (torch.float16, torch.float32, torch.float64):
+            final_dim = target.shape[-1]
+            if self.num_classes == 2 and self.reduced_features_binary:
+                assert final_dim == 1, \
+                    f"Target probabilities final dimension must be 1 for `reduced_features_binary`, got {final_dim}."
+                target = torch.cat((target, 1 - target), dim=-1)
+            else:
+                assert final_dim == self.num_classes, \
+                    f"Target probabilities last dimension must match {self.num_classes} classes, got {final_dim}."
+            target_dist = target
+        else:
+            assert False, f"Unsupported dtype {target.dtype}. Supported dtypes are int64 and float types."
+        return target_dist
+
+    def discrete_data_continuous_loss(self, target: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Number of classes must be set at initialisation for discrete data."
 
-        bsz = ids.shape[0]
+        bsz = target.shape[0]
 
-        t = torch.rand(bsz, device=ids.device, dtype=torch.float32)
+        t = torch.rand(bsz, device=target.device, dtype=torch.float32)
+
+        target_dist = self.target_to_distribution(target)
 
         beta = self.get_beta(t)
-        one_hot_x = F.one_hot(ids, num_classes=self.num_classes).float()
-        mean = append_dims(beta, one_hot_x.ndim) * (self.num_classes * one_hot_x - 1)
-        var = append_dims(beta * self.num_classes, one_hot_x.ndim)
+        mean = append_dims(beta, target_dist.ndim) * (self.num_classes * target_dist - 1)
+        var = append_dims(beta * self.num_classes, target_dist.ndim)
         eps = torch.randn_like(mean)
         y = mean + eps * var.sqrt()
 
@@ -149,7 +167,7 @@ class BayesianFlow:
 
         p_0 = self.discrete_output_distribution(theta, t, **model_kwargs)
 
-        e_x, e_hat = one_hot_x, p_0
+        e_x, e_hat = target_dist, p_0
         weights = self.num_classes * self.get_alpha(t)
         mse = ((e_x - e_hat) ** 2).mean(-1)
         loss_limit_inf = append_dims(weights, mse.ndim) * mse
