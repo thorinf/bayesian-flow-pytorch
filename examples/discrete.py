@@ -10,13 +10,13 @@ from bayesian_flow_torch import BayesianFlow
 class Model(nn.Module):
     def __init__(self, num_vars=2, num_classes=2, hidden_dim=32):
         super(Model, self).__init__()
-        output_dim = num_classes if num_classes > 2 else 1
+        num_logits = num_classes if num_classes > 2 else 1
         self.layer = nn.Sequential(
-            nn.Linear(num_vars * num_classes + 1, hidden_dim),
+            nn.Linear(num_vars * num_logits + 1, hidden_dim),
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
-            nn.Linear(hidden_dim, num_vars * output_dim)
+            nn.Linear(hidden_dim, num_vars * num_logits)
         )
 
     def forward(self, x, t):
@@ -46,7 +46,7 @@ def discrete_example():
     model = Model(num_vars=2, num_classes=2)
     model.to(device)
 
-    bayesian_flow = BayesianFlow(model, num_classes=2, beta=3.0)
+    bayesian_flow = BayesianFlow(model, num_classes=3, beta=3.0, reduced_features_binary=True)
 
     optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
@@ -68,7 +68,8 @@ def discrete_example():
     x = get_xor_data(128, 'cpu')
 
     model.eval()
-    x_hat = bayesian_flow.discrete_data_sample(size=(128, 2), num_steps=100, device=device).cpu().numpy()
+    x_hat_logits = bayesian_flow.discrete_data_sample(size=(128, 2), num_steps=100, device=device)
+    x_hat = x_hat_logits.argmax(-1).cpu().numpy()
 
     plt.figure(figsize=(10, 15))
 

@@ -56,7 +56,8 @@ model = ...
 
 # Instantiate Bayesian Flow for discrete data
 # Number of classes and Beta must be set
-bayesian_flow = BayesianFlow(model=model, num_classes=..., beta=...)
+# For binary data, i.e. `num_classes=2`, you may also set `reduced_features_binary=True` to reduce the features to 1
+bayesian_flow = BayesianFlow(model=model, num_classes=..., beta=..., reduced_features_binary=...)
 
 # Compute the discrete data continuous time loss for the batch
 loss = bayesian_flow.discrete_data_continuous_loss(ids=..., model_kwargs=...)
