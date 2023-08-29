@@ -64,21 +64,21 @@ class BayesianFlow:
     def continuous_data_continuous_loss(self, target: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
-        bsz = x.shape[0]
+        bsz = target.shape[0]
 
-        t = torch.rand(bsz, device=x.device, dtype=torch.float32)
+        t = torch.rand(bsz, device=target.device, dtype=torch.float32)
 
         gamma = self.get_gamma(t)
 
-        mean = append_dims(gamma, x.ndim) * x
-        std = append_dims(gamma * (1 - gamma), x.ndim).sqrt()
-        eps = torch.randn_like(x)
+        mean = append_dims(gamma, target.ndim) * target
+        std = append_dims(gamma * (1 - gamma), target.ndim).sqrt()
+        eps = torch.randn_like(target)
         mu = mean + eps * std
 
         x_hat = self.continuous_output_prediction(mu, t, gamma, **model_kwargs)
 
         weights = -math.log(self.sigma) * (self.sigma ** (t * -2.0))
-        mse = ((x - x_hat) ** 2).mean(-1)
+        mse = ((target - x_hat) ** 2).mean(-1)
         loss_limit_inf = append_dims(weights, mse.ndim) * mse
         return loss_limit_inf.mean()
 
