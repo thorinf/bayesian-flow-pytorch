@@ -1,5 +1,5 @@
 import math
-from typing import TypeVar, Any, Union, Tuple
+from typing import Any, List, Tuple, TypeVar, Union
 
 import torch
 import torch.nn as nn
@@ -90,7 +90,7 @@ class BayesianFlow:
             return_all: bool = False,
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Union[torch.Tensor, List[torch.Tensor]]:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
         outputs_list = []
@@ -193,7 +193,7 @@ class BayesianFlow:
             return_all: bool = False,
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Union[torch.Tensor, List[torch.Tensor]]:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Beta must be set at initialisation for discrete data."
 
