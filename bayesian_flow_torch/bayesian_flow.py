@@ -87,10 +87,13 @@ class BayesianFlow:
             self,
             size: Tuple[int, ...],
             num_steps: int = 100,
+            return_all: bool = False,
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
     ) -> torch.Tensor:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
+
+        outputs_list = []
 
         mu = torch.zeros(size, device=device)
         rho = 1
@@ -101,6 +104,10 @@ class BayesianFlow:
 
             gamma = self.get_gamma(t)
             x_hat = self.continuous_output_prediction(mu, t, gamma, **model_kwargs)
+
+            if return_all:
+                outputs_list.append(x_hat)
+
             alpha = self.sigma ** (-2 * i / num_steps) * (1 - self.sigma ** (2 / num_steps))
 
             mean = x_hat
@@ -113,7 +120,12 @@ class BayesianFlow:
 
         t = torch.ones((mu.shape[0]), device=mu.device, dtype=mu.dtype)
         x_hat = self.continuous_output_prediction(mu, t, self.get_gamma(t))
-        return x_hat
+
+        if return_all:
+            outputs_list.append(x_hat)
+            return outputs_list
+        else:
+            return x_hat
 
     def discrete_output_distribution(self, theta: torch.Tensor, t: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
         if self.num_classes == 2 and self.reduced_features_binary:
@@ -178,11 +190,14 @@ class BayesianFlow:
             self,
             size: Tuple[int, ...],
             num_steps: int = 100,
+            return_all: bool = False,
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
     ) -> torch.Tensor:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Beta must be set at initialisation for discrete data."
+
+        outputs_list = []
 
         theta = torch.ones((*size, self.num_classes), device=device) / self.num_classes
 
@@ -192,6 +207,10 @@ class BayesianFlow:
 
             k_probs = self.discrete_output_distribution(theta, t, **model_kwargs)
             k = torch.distributions.Categorical(probs=k_probs).sample()
+
+            if return_all:
+                outputs_list.append(k_probs)
+
             alpha = self.beta * (2 * i - 1) / (num_steps ** 2)
 
             e_k = F.one_hot(k, num_classes=self.num_classes).float()
@@ -205,4 +224,9 @@ class BayesianFlow:
             theta = theta_prime / theta_prime.sum(-1, keepdim=True)
 
         k_probs_final = self.discrete_output_distribution(theta, torch.ones_like(t))
-        return k_probs_final
+
+        if return_all:
+            outputs_list.append(k_probs_final)
+            return outputs_list
+        else:
+            return k_probs_final
