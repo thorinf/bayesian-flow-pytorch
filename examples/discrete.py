@@ -46,7 +46,7 @@ def discrete_example():
     model = Model(num_vars=2, num_classes=2)
     model.to(device)
 
-    bayesian_flow = BayesianFlow(model, num_classes=3, beta=3.0, reduced_features_binary=True)
+    bayesian_flow = BayesianFlow(model, num_classes=2, beta=3.0, reduced_features_binary=True)
 
     optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 

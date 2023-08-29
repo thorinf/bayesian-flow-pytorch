@@ -187,4 +187,4 @@ class BayesianFlow:
             theta = theta_prime / theta_prime.sum(-1, keepdim=True)
 
         k_probs_final = self.discrete_output_distribution(theta, torch.ones_like(t))
-        return k_final
+        return k_probs_final
