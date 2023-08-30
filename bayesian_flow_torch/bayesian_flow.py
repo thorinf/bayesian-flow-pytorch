@@ -62,6 +62,7 @@ class BayesianFlow:
             self,
             model: nn.Module,
             target: torch.Tensor,
+            reduction: str = 'mean',
             **model_kwargs: Any
     ) -> torch.Tensor:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
@@ -82,7 +83,15 @@ class BayesianFlow:
         weights = -math.log(self.sigma) * (self.sigma ** (t * -2.0))
         mse = ((target - x_hat) ** 2).mean(-1)
         loss_limit_inf = append_dims(weights, mse.ndim) * mse
-        return loss_limit_inf.mean()
+
+        if reduction == 'mean':
+            return loss_limit_inf.mean()
+        elif reduction == 'sum':
+            return loss_limit_inf.sum()
+        elif reduction == 'none':
+            return loss_limit_inf
+        else:
+            raise ValueError(f"Invalid reduction: {reduction}")
 
     @torch.inference_mode()
     def continuous_data_sample(
@@ -172,6 +181,7 @@ class BayesianFlow:
             self,
             model: nn.Module,
             target: torch.Tensor,
+            reduction: str = 'mean',
             **model_kwargs: Any
     ) -> torch.Tensor:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
@@ -197,7 +207,15 @@ class BayesianFlow:
         weights = self.num_classes * self.get_alpha(t)
         mse = ((e_x - e_hat) ** 2).mean(-1)
         loss_limit_inf = append_dims(weights, mse.ndim) * mse
-        return loss_limit_inf.mean()
+
+        if reduction == 'mean':
+            return loss_limit_inf.mean()
+        elif reduction == 'sum':
+            return loss_limit_inf.sum()
+        elif reduction == 'none':
+            return loss_limit_inf
+        else:
+            raise ValueError(f"Invalid reduction: {reduction}")
 
     @torch.inference_mode()
     def discrete_data_sample(
