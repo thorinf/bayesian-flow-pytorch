@@ -235,8 +235,7 @@ class BayesianFlow:
             eps = torch.randn_like(e_k)
             y = mean + eps * var.sqrt()
 
-            theta_prime = torch.exp(y) * theta
-            theta = theta_prime / theta_prime.sum(-1, keepdim=True)
+            theta = F.softmax(y + torch.log(theta + 1e-10), dim=-1)
 
         k_probs_final = self.discrete_output_distribution(model, theta, torch.ones_like(t))
 
