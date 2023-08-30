@@ -47,7 +47,7 @@ def continuous_example():
     model = Model(input_dim=2, output_dim=2)
     model.to(device)
 
-    bayesian_flow = BayesianFlow(model, sigma=0.001)
+    bayesian_flow = BayesianFlow(sigma=0.001)
 
     optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
@@ -59,7 +59,7 @@ def continuous_example():
         optim.zero_grad()
 
         x = get_circle_data(batch_size=2048, device=device)
-        loss = bayesian_flow.continuous_data_continuous_loss(x)
+        loss = bayesian_flow.continuous_data_continuous_loss(model, x)
         loss.backward()
 
         optim.step()
@@ -69,7 +69,7 @@ def continuous_example():
     x = get_circle_data(128, 'cpu')
 
     model.eval()
-    x_hat = bayesian_flow.continuous_data_sample(size=(128, 2), device=device, num_steps=100).cpu().numpy()
+    x_hat = bayesian_flow.continuous_data_sample(model, size=(128, 2), device=device, num_steps=100).cpu().numpy()
 
     plt.figure(figsize=(10, 15))
 

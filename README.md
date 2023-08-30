@@ -38,13 +38,13 @@ model = ...
 
 # Instantiate Bayesian Flow for continuous data
 # Sigma must be set
-bayesian_flow = BayesianFlow(model=model, sigma=0.001)
+bayesian_flow = BayesianFlow(sigma=0.001)
 
 # Compute the continuous data continuous time loss
-loss = bayesian_flow.continuous_data_continuous_loss(x=..., model_kwargs=...)
+loss = bayesian_flow.continuous_data_continuous_loss(model=..., target=..., model_kwargs=...)
 
 # Generate samples from the model 
-samples = bayesian_flow.continuous_data_sample(size=..., num_steps=..., device=..., model_kwargs=...)
+samples = bayesian_flow.continuous_data_sample(model=..., size=..., num_steps=..., device=..., model_kwargs=...)
 ```
 
 ```python
@@ -57,16 +57,16 @@ model = ...
 # Instantiate Bayesian Flow for discrete data
 # Number of classes and Beta must be set
 # For binary data, i.e. `num_classes=2`, you may also set `reduced_features_binary=True` to reduce the features to 1
-bayesian_flow = BayesianFlow(model=model, num_classes=..., beta=..., reduced_features_binary=...)
+bayesian_flow = BayesianFlow(num_classes=..., beta=..., reduced_features_binary=...)
 
 # Compute the discrete data continuous time loss for the batch
 # Target may contain class indices, or class probabilities [0, 1]. 
 # Target probalities final dimension must match number of classes, unless `reduced_features_binary=True` where it's 1.
-loss = bayesian_flow.discrete_data_continuous_loss(target=..., model_kwargs=...)
+loss = bayesian_flow.discrete_data_continuous_loss(model=..., target=..., model_kwargs=...)
 
 # Generate samples from the model 
 # Size should not include the number of classes
-samples = bayesian_flow.discrete_data_sample(size=..., num_steps=..., device=..., model_kwargs=...)
+samples = bayesian_flow.discrete_data_sample(model=..., size=..., num_steps=..., device=..., model_kwargs=...)
 ```
 
 ## Examples

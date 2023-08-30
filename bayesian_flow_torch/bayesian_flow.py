@@ -16,18 +16,14 @@ def append_dims(tensor: torch.Tensor, target_dims: int) -> torch.Tensor:
 
 
 class BayesianFlow:
-    def __init__(
-            self,
-            model: nn.Module,
-            num_classes: int = None,
-            beta: float = None,
-            sigma: float = None,
-            reduced_features_binary: bool = False
-    ) -> None:
+    def __init__(self,
+                 num_classes: int = None,
+                 beta: float = None,
+                 sigma: float = None,
+                 reduced_features_binary: bool = False) -> None:
         super(BayesianFlow, self).__init__()
         if reduced_features_binary:
             assert (num_classes == 2), f"For `reduced_features_binary` number of classes must be 2, got {num_classes}."
-        self.model = model
         self.num_classes = num_classes
         self.beta = beta
         self.sigma = sigma
@@ -44,6 +40,7 @@ class BayesianFlow:
 
     def continuous_output_prediction(
             self,
+            model: nn.Module,
             mu: torch.Tensor,
             t: torch.Tensor,
             gamma: torch.Tensor,
@@ -52,16 +49,21 @@ class BayesianFlow:
             x_max: float = 1.0,
             **model_kwargs: Any
     ) -> torch.Tensor:
-        output = self.model(mu, t, **model_kwargs)
+        output = model(mu, t, **model_kwargs)
 
         gamma = append_dims(gamma, mu.ndim)
-        x_hat = (mu / gamma) - (torch.sqrt((1 - gamma) / gamma) * output)
+        x_hat = (mu / gamma) - torch.sqrt((1 - gamma) / gamma) * output
         x_hat = torch.clamp(x_hat, x_min, x_max)
 
         condition = t < t_min
         return torch.where(append_dims(condition, x_hat.ndim), torch.zeros_like(x_hat), x_hat)
 
-    def continuous_data_continuous_loss(self, target: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
+    def continuous_data_continuous_loss(
+            self,
+            model: nn.Module,
+            target: torch.Tensor,
+            **model_kwargs: Any
+    ) -> torch.Tensor:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
         bsz = target.shape[0]
@@ -71,11 +73,11 @@ class BayesianFlow:
         gamma = self.get_gamma(t)
 
         mean = append_dims(gamma, target.ndim) * target
-        std = append_dims(gamma * (1 - gamma), target.ndim).sqrt()
+        var = append_dims(gamma * (1 - gamma), target.ndim)
         eps = torch.randn_like(target)
-        mu = mean + eps * std
+        mu = mean + eps * var.sqrt()
 
-        x_hat = self.continuous_output_prediction(mu, t, gamma, **model_kwargs)
+        x_hat = self.continuous_output_prediction(model, mu, t, gamma, **model_kwargs)
 
         weights = -math.log(self.sigma) * (self.sigma ** (t * -2.0))
         mse = ((target - x_hat) ** 2).mean(-1)
@@ -85,6 +87,7 @@ class BayesianFlow:
     @torch.inference_mode()
     def continuous_data_sample(
             self,
+            model: nn.Module,
             size: Tuple[int, ...],
             num_steps: int = 100,
             return_all: bool = False,
@@ -103,7 +106,7 @@ class BayesianFlow:
             t = t * torch.ones((mu.shape[0]), device=mu.device, dtype=mu.dtype)
 
             gamma = self.get_gamma(t)
-            x_hat = self.continuous_output_prediction(mu, t, gamma, **model_kwargs)
+            x_hat = self.continuous_output_prediction(model, mu, t, gamma, **model_kwargs)
 
             if return_all:
                 outputs_list.append(x_hat)
@@ -111,15 +114,15 @@ class BayesianFlow:
             alpha = self.sigma ** (-2 * i / num_steps) * (1 - self.sigma ** (2 / num_steps))
 
             mean = x_hat
-            std = torch.full_like(mean, fill_value=alpha).rsqrt()
+            var = torch.full_like(mean, fill_value=(1 / alpha))
             eps = torch.randn_like(x_hat)
-            y = mean + std * eps
+            y = mean + eps * var.sqrt()
 
             mu = ((rho * mu) + (alpha * y)) / (rho + alpha)
             rho = rho + alpha
 
         t = torch.ones((mu.shape[0]), device=mu.device, dtype=mu.dtype)
-        x_hat = self.continuous_output_prediction(mu, t, self.get_gamma(t))
+        x_hat = self.continuous_output_prediction(model, mu, t, self.get_gamma(t))
 
         if return_all:
             outputs_list.append(x_hat)
@@ -127,11 +130,17 @@ class BayesianFlow:
         else:
             return x_hat
 
-    def discrete_output_distribution(self, theta: torch.Tensor, t: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
+    def discrete_output_distribution(
+            self,
+            model: nn.Module,
+            theta: torch.Tensor,
+            t: torch.Tensor,
+            **model_kwargs: Any
+    ) -> torch.Tensor:
         if self.num_classes == 2 and self.reduced_features_binary:
             theta = theta[..., :1]
 
-        output = self.model(theta, t, **model_kwargs)
+        output = model(theta, t, **model_kwargs)
 
         assert output.shape == theta.shape, f"Model output shape {output.shape} does not match input {theta.shape}."
 
@@ -159,7 +168,12 @@ class BayesianFlow:
             assert False, f"Unsupported dtype {target.dtype}. Supported dtypes are int64 and float types."
         return target_dist
 
-    def discrete_data_continuous_loss(self, target: torch.Tensor, **model_kwargs: Any) -> torch.Tensor:
+    def discrete_data_continuous_loss(
+            self,
+            model: nn.Module,
+            target: torch.Tensor,
+            **model_kwargs: Any
+    ) -> torch.Tensor:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Number of classes must be set at initialisation for discrete data."
 
@@ -177,7 +191,7 @@ class BayesianFlow:
 
         theta = F.softmax(y, dim=-1)
 
-        p_0 = self.discrete_output_distribution(theta, t, **model_kwargs)
+        p_0 = self.discrete_output_distribution(model, theta, t, **model_kwargs)
 
         e_x, e_hat = target_dist, p_0
         weights = self.num_classes * self.get_alpha(t)
@@ -188,12 +202,14 @@ class BayesianFlow:
     @torch.inference_mode()
     def discrete_data_sample(
             self,
+            model: nn.Module,
             size: Tuple[int, ...],
             num_steps: int = 100,
             return_all: bool = False,
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
+
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Beta must be set at initialisation for discrete data."
 
@@ -205,7 +221,7 @@ class BayesianFlow:
             t = (i - 1) / num_steps
             t = t * torch.ones((theta.shape[0]), device=theta.device, dtype=theta.dtype)
 
-            k_probs = self.discrete_output_distribution(theta, t, **model_kwargs)
+            k_probs = self.discrete_output_distribution(model, theta, t, **model_kwargs)
             k = torch.distributions.Categorical(probs=k_probs).sample()
 
             if return_all:
@@ -215,15 +231,14 @@ class BayesianFlow:
 
             e_k = F.one_hot(k, num_classes=self.num_classes).float()
             mean = alpha * (self.num_classes * e_k - 1)
-            var = (alpha * self.num_classes)
-            std = torch.full_like(mean, fill_value=var).sqrt()
+            var = torch.full_like(mean, fill_value=(alpha * self.num_classes))
             eps = torch.randn_like(e_k)
-            y = mean + std * eps
+            y = mean + eps * var.sqrt()
 
             theta_prime = torch.exp(y) * theta
             theta = theta_prime / theta_prime.sum(-1, keepdim=True)
 
-        k_probs_final = self.discrete_output_distribution(theta, torch.ones_like(t))
+        k_probs_final = self.discrete_output_distribution(model, theta, torch.ones_like(t))
 
         if return_all:
             outputs_list.append(k_probs_final)

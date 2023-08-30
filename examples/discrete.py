@@ -46,7 +46,7 @@ def discrete_example():
     model = Model(num_vars=2, num_classes=2)
     model.to(device)
 
-    bayesian_flow = BayesianFlow(model, num_classes=2, beta=3.0, reduced_features_binary=True)
+    bayesian_flow = BayesianFlow(num_classes=2, beta=3.0, reduced_features_binary=True)
 
     optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
@@ -58,7 +58,7 @@ def discrete_example():
         optim.zero_grad()
 
         x = get_xor_data(batch_size=2048, device=device)
-        loss = bayesian_flow.discrete_data_continuous_loss(x)
+        loss = bayesian_flow.discrete_data_continuous_loss(model, x)
         loss.backward()
 
         optim.step()
@@ -68,7 +68,7 @@ def discrete_example():
     x = get_xor_data(128, 'cpu')
 
     model.eval()
-    x_hat_logits = bayesian_flow.discrete_data_sample(size=(128, 2), num_steps=100, device=device)
+    x_hat_logits = bayesian_flow.discrete_data_sample(model, size=(128, 2), num_steps=100, device=device)
     x_hat = x_hat_logits.argmax(-1).cpu().numpy()
 
     plt.figure(figsize=(10, 15))
