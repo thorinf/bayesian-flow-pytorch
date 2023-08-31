@@ -131,7 +131,7 @@ class BayesianFlow:
             rho = rho + alpha
 
         t = torch.ones((mu.shape[0]), device=mu.device, dtype=mu.dtype)
-        x_hat = self.continuous_output_prediction(model, mu, t, self.get_gamma(t))
+        x_hat = self.continuous_output_prediction(model, mu, t, self.get_gamma(t), **model_kwargs)
 
         if return_all:
             outputs_list.append(x_hat)
@@ -255,7 +255,7 @@ class BayesianFlow:
 
             theta = F.softmax(y + torch.log(theta + 1e-10), dim=-1)
 
-        k_probs_final = self.discrete_output_distribution(model, theta, torch.ones_like(t))
+        k_probs_final = self.discrete_output_distribution(model, theta, torch.ones_like(t), **model_kwargs)
 
         if return_all:
             outputs_list.append(k_probs_final)
