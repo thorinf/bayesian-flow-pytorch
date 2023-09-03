@@ -63,8 +63,9 @@ class BayesianFlow:
             model: nn.Module,
             target: torch.Tensor,
             reduction: str = 'mean',
+            return_prediction: bool = False,
             **model_kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
         bsz = target.shape[0]
@@ -81,17 +82,22 @@ class BayesianFlow:
         x_hat = self.continuous_output_prediction(model, mu, t, gamma, **model_kwargs)
 
         weights = -math.log(self.sigma) * (self.sigma ** (t * -2.0))
-        mse = ((target - x_hat) ** 2).mean(-1)
-        loss_limit_inf = append_dims(weights, mse.ndim) * mse
+        se = ((target - x_hat) ** 2)
+        loss_limit_inf = (append_dims(weights, se.ndim) * se).mean(-1)
 
         if reduction == 'mean':
-            return loss_limit_inf.mean()
+            loss = loss_limit_inf.mean()
         elif reduction == 'sum':
-            return loss_limit_inf.sum()
+            loss = loss_limit_inf.sum()
         elif reduction == 'none':
-            return loss_limit_inf
+            loss = loss_limit_inf
         else:
             raise ValueError(f"Invalid reduction: {reduction}")
+
+        if return_prediction:
+            return loss, x_hat
+        else:
+            return loss
 
     @torch.inference_mode()
     def continuous_data_sample(
@@ -182,8 +188,9 @@ class BayesianFlow:
             model: nn.Module,
             target: torch.Tensor,
             reduction: str = 'mean',
+            return_distribution: bool = False,
             **model_kwargs: Any
-    ) -> torch.Tensor:
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Number of classes must be set at initialisation for discrete data."
 
@@ -205,17 +212,22 @@ class BayesianFlow:
 
         e_x, e_hat = target_dist, p_0
         weights = self.num_classes * self.get_alpha(t)
-        mse = ((e_x - e_hat) ** 2).mean(-1)
-        loss_limit_inf = append_dims(weights, mse.ndim) * mse
+        se = ((e_x - e_hat) ** 2)
+        loss_limit_inf = (append_dims(weights, se.ndim) * se).mean(-1)
 
         if reduction == 'mean':
-            return loss_limit_inf.mean()
+            loss = loss_limit_inf.mean()
         elif reduction == 'sum':
-            return loss_limit_inf.sum()
+            loss = loss_limit_inf.sum()
         elif reduction == 'none':
-            return loss_limit_inf
+            loss = loss_limit_inf
         else:
             raise ValueError(f"Invalid reduction: {reduction}")
+
+        if return_distribution:
+            return loss, p_0
+        else:
+            return loss
 
     @torch.inference_mode()
     def discrete_data_sample(
