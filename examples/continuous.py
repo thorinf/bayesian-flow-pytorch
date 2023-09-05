@@ -15,6 +15,10 @@ class Model(nn.Module):
             nn.GELU(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.GELU(),
             nn.Linear(hidden_dim, output_dim)
         )
 
@@ -25,15 +29,17 @@ class Model(nn.Module):
         return output.view(bsz, dim)
 
 
-def get_circle_data(batch_size, device='cpu'):
-    # Generate random angles between 0 and 2*pi for each datapoint in the batch
-    theta = 2 * torch.pi * torch.rand(batch_size, device=device)
+def get_two_moons_data(batch_size, noise=0.1, device='cpu'):
+    theta = torch.rand(batch_size, device=device) * torch.pi
+    moon_idx = torch.randint_like(theta, high=2, dtype=torch.int64)
 
-    # Compute the x and y coordinates based on the angle
-    x, y = torch.cos(theta), torch.sin(theta)
+    x = torch.cos(theta) + moon_idx.float() - 0.5
+    y = torch.sin(theta) * (moon_idx.float() * 2 - 1)
 
-    # Stack the coordinates to form a [batch, 2] tensor
-    coordinates = torch.stack([x, y], dim=1)
+    x += torch.randn(batch_size, device=device) * noise
+    y += torch.randn(batch_size, device=device) * noise
+
+    coordinates = torch.stack([x / 2, y / 1.5], dim=1)
 
     return coordinates
 
@@ -47,35 +53,36 @@ def continuous_example():
     model = Model(input_dim=2, output_dim=2)
     model.to(device)
 
-    bayesian_flow = BayesianFlow(sigma=0.001)
+    bayesian_flow = BayesianFlow(sigma=0.01)
 
     optim = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
-    n = 1000
+    n = 5000
     losses = []
 
     model.train()
     for _ in tqdm(range(n)):
         optim.zero_grad()
 
-        x = get_circle_data(batch_size=2048, device=device)
+        x = get_two_moons_data(batch_size=2048, device=device)
         loss = bayesian_flow.continuous_data_continuous_loss(model, x)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         optim.step()
 
         losses.append(loss.item())
 
-    x = get_circle_data(128, 'cpu')
+    x = get_two_moons_data(1024, device='cpu').numpy()
 
     model.eval()
-    x_hat = bayesian_flow.continuous_data_sample(model, size=(128, 2), device=device, num_steps=100).cpu().numpy()
+    x_hat = bayesian_flow.continuous_data_sample(model, size=(1024, 2), device=device, num_steps=20).cpu().numpy()
 
     plt.figure(figsize=(10, 15))
 
     plt.subplot(3, 1, 1)
     plt.title("Dataset")
-    plt.scatter(x[:, 0].numpy(), x[:, 1].numpy())
+    plt.scatter(x[:, 0], x[:, 1])
 
     plt.subplot(3, 1, 2)
     plt.plot(losses)

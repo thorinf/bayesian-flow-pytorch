@@ -74,9 +74,9 @@ samples = bayesian_flow.discrete_data_sample(model=..., size=..., num_steps=...,
 In the examples directory are simple toy examples.
 
 <p align="center">
-  <img src="figures/continuous.png" alt="Continuous Data: Predict Circle Coordinates">
+  <img src="figures/continuous.png" alt="Continuous Data: 'Two Moons' Coordinates">
   <br>
-  <b>Figure 1. Continuous Data: Predict Circle Coordinates</b>
+  <b>Figure 1. Continuous Data: 'Two Moons' Coordinates</b>
 </p>
 
 
