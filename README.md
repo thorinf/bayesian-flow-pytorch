@@ -10,22 +10,33 @@ $ pip install -e .
 
 ## Features
 
-- [ ] Continuous Data Discrete Time Loss Implementation
-- [x] Continuous Data Continuous Time Loss Implementation
-- [x] Continuous Data Sampler Implementation
-- [x] Continuous Data Example
+#### Continuous Data
+- [ ] Discrete Time Loss
+- [x] Continuous Time Loss
+- [x] Sampler
+- [x] Example
+- [ ] Self-Conditioning
 
+#### Discretised Data
+- [ ] Discrete Time Loss
+- [ ] Continuous Time Loss
+- [ ] Sampler
+- [ ] Example
+- [ ] Self-Conditioning
 
-- [ ] Discretised Data Discrete Time Loss Implementation
-- [ ] Discretised Data Continuous Time Loss Implementation
-- [ ] Discretised Data Sampler Implementation
-- [ ] Discretised Data Example
+#### Discrete Data
+- [ ] Discrete Time Loss
+- [x] Continuous Time Loss
+- [x] Sampler
+- [x] Example
+- [ ] Self-Conditioning
 
+## Utilised By
 
-- [ ] Discrete Data Discrete Time Loss Implementation
-- [x] Discrete Data Continuous Time Loss Implementation
-- [x] Discrete Data Sampler Implementation
-- [x] Discrete Data Example
+[bayesian-flow-mnist](https://github.com/thorinf/bayesian-flow-mnist): 
+A simple Bayesian Flow model for MNIST in Pytorch. 
+Replicated the binarised MNIST generation, and can also generate MNIST as continuous data.
+
 
 ## Usage
 
@@ -68,6 +79,7 @@ loss = bayesian_flow.discrete_data_continuous_loss(model=..., target=..., model_
 # Size should not include the number of classes
 samples = bayesian_flow.discrete_data_sample(model=..., size=..., num_steps=..., device=..., model_kwargs=...)
 ```
+
 
 ## Examples
 
