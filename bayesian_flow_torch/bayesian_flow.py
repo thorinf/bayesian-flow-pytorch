@@ -16,11 +16,13 @@ def append_dims(tensor: torch.Tensor, target_dims: int) -> torch.Tensor:
 
 
 class BayesianFlow:
-    def __init__(self,
-                 num_classes: int = None,
-                 beta: float = None,
-                 sigma: float = None,
-                 reduced_features_binary: bool = False) -> None:
+    def __init__(
+            self,
+            num_classes: int = None,
+            beta: float = None,
+            sigma: float = None,
+            reduced_features_binary: bool = False
+    ) -> None:
         super(BayesianFlow, self).__init__()
         if reduced_features_binary:
             assert (num_classes == 2), f"For `reduced_features_binary` number of classes must be 2, got {num_classes}."
@@ -53,7 +55,7 @@ class BayesianFlow:
 
         gamma = append_dims(gamma, mu.ndim)
         x_hat = (mu / gamma) - torch.sqrt((1 - gamma) / gamma) * output
-        x_hat = torch.clamp(x_hat, x_min, x_max)
+        x_hat = torch.clip(x_hat, x_min, x_max)
 
         condition = t < t_min
         return torch.where(append_dims(condition, x_hat.ndim), torch.zeros_like(x_hat), x_hat)
@@ -70,7 +72,7 @@ class BayesianFlow:
 
         bsz = target.shape[0]
 
-        t = torch.rand(bsz, device=target.device, dtype=torch.float32)
+        t = torch.rand(bsz, requires_grad=False, device=target.device, dtype=torch.float32)
 
         gamma = self.get_gamma(t)
 
@@ -79,11 +81,11 @@ class BayesianFlow:
         eps = torch.randn_like(target)
         mu = mean + eps * var.sqrt()
 
-        x_hat = self.continuous_output_prediction(model, mu, t, gamma, **model_kwargs)
+        x_hat = self.continuous_output_prediction(model, mu.detach(), t, gamma, **model_kwargs)
 
-        weights = -math.log(self.sigma) * (self.sigma ** (t * -2.0))
-        se = ((target - x_hat) ** 2)
-        loss_limit_inf = (append_dims(weights, se.ndim) * se).mean(-1)
+        weights = -math.log(self.sigma) / (self.sigma ** (t * 2.0))
+        err_sq = ((target - x_hat) ** 2)
+        loss_limit_inf = (append_dims(weights, err_sq.ndim) * err_sq)
 
         if reduction == 'mean':
             loss = loss_limit_inf.mean()
@@ -196,11 +198,11 @@ class BayesianFlow:
 
         bsz = target.shape[0]
 
-        t = torch.rand(bsz, device=target.device, dtype=torch.float32)
+        t = torch.rand(bsz, requires_grad=False, device=target.device, dtype=torch.float32)
 
         target_dist = self.target_to_distribution(target)
 
-        beta = self.get_beta(t)
+        beta = self.beta * (t ** 2)
         mean = append_dims(beta, target_dist.ndim) * (self.num_classes * target_dist - 1)
         var = append_dims(beta * self.num_classes, target_dist.ndim)
         eps = torch.randn_like(mean)
@@ -208,12 +210,12 @@ class BayesianFlow:
 
         theta = F.softmax(y, dim=-1)
 
-        p_0 = self.discrete_output_distribution(model, theta, t, **model_kwargs)
+        p_0 = self.discrete_output_distribution(model, theta.detach(), t, **model_kwargs)
 
         e_x, e_hat = target_dist, p_0
         weights = self.num_classes * self.get_alpha(t)
-        se = ((e_x - e_hat) ** 2)
-        loss_limit_inf = (append_dims(weights, se.ndim) * se).mean(-1)
+        err_sq = ((e_x - e_hat) ** 2).sum(-1)
+        loss_limit_inf = (append_dims(weights, err_sq.ndim) * err_sq)
 
         if reduction == 'mean':
             loss = loss_limit_inf.mean()
@@ -239,7 +241,6 @@ class BayesianFlow:
             device: Union[str, torch.device] = 'cpu',
             **model_kwargs: Any
     ) -> Union[torch.Tensor, List[torch.Tensor]]:
-
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Beta must be set at initialisation for discrete data."
 
