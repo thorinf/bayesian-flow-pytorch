@@ -67,6 +67,7 @@ model = ...
 
 # Instantiate Bayesian Flow for discrete data
 # Number of classes and Beta must be set
+# NOTE: There appears to be an inverse relationship between number of classes and Beta
 # For binary data, i.e. `num_classes=2`, you may also set `reduced_features_binary=True` to reduce the features to 1
 bayesian_flow = BayesianFlow(num_classes=..., beta=..., reduced_features_binary=...)
 
@@ -79,6 +80,14 @@ loss = bayesian_flow.discrete_data_continuous_loss(model=..., target=..., model_
 # Size should not include the number of classes
 samples = bayesian_flow.discrete_data_sample(model=..., size=..., num_steps=..., device=..., model_kwargs=...)
 ```
+
+As noted above, there appears to be an inverse relationship between `num_classes` and `beta`.
+Within the discrete loss, `theta` represents the softmax of a noised simplex, and is the input to the model.
+If `beta` is too large with respect to the `num_classes`, 
+`theta` will effectively match the ground truth distribution for many of the time-steps. 
+If the `theta` distribution consistently matches the ground truth, there is nothing to learn.
+By looking at values of `theta` you may be able to identify if the `beta` is low enough to adequately noise
+the simplex such that there is a loss of information between the ground truth and `theta`.
 
 
 ## Examples
