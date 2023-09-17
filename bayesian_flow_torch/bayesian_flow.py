@@ -4,15 +4,23 @@ from typing import Any, List, Tuple, TypeVar, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dataclasses import dataclass
 
 T = TypeVar('T', float, torch.Tensor)
 
 
-def append_dims(tensor: torch.Tensor, target_dims: int) -> torch.Tensor:
-    assert isinstance(target_dims, int), f"Expected 'target_dims' to be an integer, but received {type(target_dims)}."
-    tensor_dims = tensor.ndim
-    assert tensor_dims <= target_dims, f"Tensor has {tensor_dims} dimensions, but target has {target_dims} dimensions."
-    return tensor[(...,) + (None,) * (target_dims - tensor_dims)]
+@dataclass
+class ContinuousDataLossResult:
+    loss: torch.Tensor
+    input_data: torch.Tensor
+    output_data: torch.Tensor
+
+
+@dataclass
+class DiscreteDataLossResult:
+    loss: torch.Tensor
+    input_probs: torch.Tensor
+    output_probs: torch.Tensor
 
 
 class BayesianFlow:
@@ -40,8 +48,8 @@ class BayesianFlow:
     def get_gamma(self, t: T) -> T:
         return 1 - (self.sigma ** (t * 2.0))
 
+    @staticmethod
     def continuous_output_prediction(
-            self,
             model: nn.Module,
             mu: torch.Tensor,
             t: torch.Tensor,
@@ -65,9 +73,8 @@ class BayesianFlow:
             model: nn.Module,
             target: torch.Tensor,
             reduction: str = 'mean',
-            return_prediction: bool = False,
             **model_kwargs: Any
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> ContinuousDataLossResult:
         assert self.sigma is not None, "Sigma must be set at initialisation for continuous data."
 
         bsz = target.shape[0]
@@ -96,10 +103,11 @@ class BayesianFlow:
         else:
             raise ValueError(f"Invalid reduction: {reduction}")
 
-        if return_prediction:
-            return loss, x_hat
-        else:
-            return loss
+        return ContinuousDataLossResult(
+            loss=loss,
+            input_data=mu,
+            output_data=x_hat
+        )
 
     @torch.inference_mode()
     def continuous_data_sample(
@@ -190,9 +198,8 @@ class BayesianFlow:
             model: nn.Module,
             target: torch.Tensor,
             reduction: str = 'mean',
-            return_distribution: bool = False,
             **model_kwargs: Any
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> DiscreteDataLossResult:
         assert self.num_classes is not None, "Number of classes must be set at initialisation for discrete data."
         assert self.beta is not None, "Number of classes must be set at initialisation for discrete data."
 
@@ -226,10 +233,11 @@ class BayesianFlow:
         else:
             raise ValueError(f"Invalid reduction: {reduction}")
 
-        if return_distribution:
-            return loss, p_0
-        else:
-            return loss
+        return DiscreteDataLossResult(
+            loss=loss,
+            input_probs=theta,
+            output_probs=p_0
+        )
 
     @torch.inference_mode()
     def discrete_data_sample(
@@ -275,3 +283,10 @@ class BayesianFlow:
             return outputs_list
         else:
             return k_probs_final
+
+
+def append_dims(tensor: torch.Tensor, target_dims: int) -> torch.Tensor:
+    assert isinstance(target_dims, int), f"Expected 'target_dims' to be an integer, but received {type(target_dims)}."
+    tensor_dims = tensor.ndim
+    assert tensor_dims <= target_dims, f"Tensor has {tensor_dims} dimensions, but target has {target_dims} dimensions."
+    return tensor[(...,) + (None,) * (target_dims - tensor_dims)]

@@ -65,7 +65,7 @@ def continuous_example():
         optim.zero_grad()
 
         x = get_two_moons_data(batch_size=2048, device=device)
-        loss = bayesian_flow.continuous_data_continuous_loss(model, x)
+        loss = bayesian_flow.continuous_data_continuous_loss(model, x).loss
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 

@@ -58,7 +58,7 @@ def discrete_example():
         optim.zero_grad()
 
         x = get_xor_data(batch_size=2048, device=device)
-        loss = bayesian_flow.discrete_data_continuous_loss(model, x)
+        loss = bayesian_flow.discrete_data_continuous_loss(model, x).loss
         loss.backward()
 
         optim.step()
